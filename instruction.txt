@@ -1,0 +1,5 @@
+So generally what I do with this data is look at the arc voltage within a certain range on both the X and Y axes. So like at first it would show me everything, but it would be nice to then select a range for Y (like from -140v to -100v) and a range for X (from time = 1sec to time = 100sec) and have it "zoom" in on that data
+and then it would also be nice to be able to cycle through the different columns to show the data. I might want to just isolate the voltage, the Y value, the z value, etc. I also might want to show all three corrected data points on one chart (Corrected Z, Corrected Y, and Corrected X)Also - the Time column will be the X axis. I didn't say that, but technically that's the case. I'm ok if it was just a scatter plot though and we just treated each sample as 1,2,3,4 in X. That way we could also plot the time to make sure we don't have anomalies in the sampling rate
+ 
+In that last case, I think we are storing the total accumulated time. It would be cool to show it as-is which would be a ramp, but it would also be nice to get the delta/difference between points
+ 
