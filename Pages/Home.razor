@@ -1,0 +1,69 @@
+﻿@* @page "/"
+@rendermode Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer
+
+@using PipeUi.State
+@inject ModalState Modal
+@inject IJSRuntime JS
+
+<h1>Hello, world!</h1>
+<p>Welcome to your new app.</p>
+
+<button class="btn btn-warning" @onclick="OpenGlobalModal">Test Global Modal</button>
+
+
+@code {
+    private void OpenGlobalModal()
+    {
+        Console.WriteLine("OpenGlobalModal clicked");
+
+        Modal.Show(
+            title: "Global Modal Works",
+            body: "This modal is rendered from MainLayout.\nSo any page can trigger it.",
+            confirmText: "Confirm",
+            cancelText: "Cancel",
+            showCancel: true,
+            onConfirm: async () => await JS.InvokeVoidAsync("alert", "Confirmed!"),
+            onCancel: async () => await JS.InvokeVoidAsync("alert", "Cancelled!")
+        );
+    }
+} *@
+@page "/"
+@inject PipeUi.State.ModalState Modal
+
+ 
+
+@using PipeUi.State
+@* @inject PipeUi.State.ModalState Modal *@
+@inject IJSRuntime JS
+
+<h1>Hello, world!</h1>
+
+<p>Clicked: @clicked</p>
+<p>Modal Instance: @Modal.InstanceId</p>
+<p>IsOpen (from page): @Modal.IsOpen</p>
+<p>Modal Type: @Modal.TypeName</p>
+
+
+<button class="btn btn-warning" @onclick="OpenGlobalModal">Test Global Modal</button>
+
+@code {
+    private int clicked = 0;
+
+    private async Task OpenGlobalModal()
+    {
+        clicked++;
+
+        // 关键：这里直接写入 IsOpen，并通知 UI
+        Modal.Show(
+            title: "Global Modal Works",
+            body: "This modal is rendered from MainLayout.\nSo any page can trigger it.",
+            confirmText: "Confirm",
+            cancelText: "Cancel",
+            showCancel: true,
+            onConfirm: async () => await JS.InvokeVoidAsync("alert", "Confirmed"),
+            onCancel: async () => await JS.InvokeVoidAsync("alert", "Cancelled")
+        );
+
+        await Task.CompletedTask;
+    }
+}

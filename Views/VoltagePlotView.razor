@@ -1,0 +1,352 @@
+@* ===== 旧版 View (被 v4 替代) =====
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using PipeUi.State
+
+@inject VoltagePlotState Vm
+@inject IJSRuntime JSRuntime
+@inject ModalState Modal
+
+@implements IDisposable
+
+<h3>Voltage Monitor</h3>
+
+<div style="padding: 20px;">
+    <div style="margin-bottom: 20px;">
+        <h5>Upload CSV File</h5>
+
+        <InputFile @key="_fileInputKey"
+                   id="voltageFileInput"
+                   OnChange="OnFileChanged" />
+
+        <div style="margin-top:10px;">
+            <label style="margin-right:8px;">Plot:</label>
+            <select value="@Vm.SelectedSeries"
+                    @onchange="e => Vm.ChangeSeries(e.Value?.ToString() ?? Vm.SeriesOptions[0])">
+                @foreach (var opt in Vm.SeriesOptions)
+                {
+                    <option value="@opt">@opt</option>
+                }
+            </select>
+        </div>
+
+        @if (!string.IsNullOrEmpty(Vm.Message))
+        {
+            <div style="margin-top: 10px; padding: 10px; background: #d4edda; border-radius: 4px;">
+                @Vm.Message
+            </div>
+        }
+    </div>
+
+    @if (Vm.Model != null && Vm.Model.DataPoints.Count > 0)
+    {
+        <div style="margin-bottom: 20px;">
+            <h5>Statistics</h5>
+            @if (Vm.Stats != null)
+            {
+                <p>Data Points: @Vm.Stats.Count</p>
+                <p>Min: @Vm.Stats.MinVoltage.ToString("F2") V</p>
+                <p>Max: @Vm.Stats.MaxVoltage.ToString("F2") V</p>
+                <p>Avg: @Vm.Stats.AverageVoltage.ToString("F2") V</p>
+            }
+
+            @if (!string.IsNullOrEmpty(Vm.Model.FileName))
+            {
+                <p>File: @Vm.Model.FileName</p>
+            }
+            @if (Vm.Model.ColumnNames.Count > 0)
+            {
+                <p>Columns: @string.Join(", ", Vm.Model.ColumnNames)</p>
+            }
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <h5>Voltage Chart</h5>
+            <canvas id="chart" width="800" height="400" style="border: 1px solid #ccc;"></canvas>
+        </div>
+
+        <div>
+            <h5>Anomaly Detection</h5>
+            <input type="number" @bind="Vm.Threshold" step="1" style="width: 100px;" />
+            <button @onclick="Vm.Detect" style="margin-left: 10px;">Detect</button>
+
+            @if (Vm.Anomalies != null)
+            {
+                <p style="margin-top: 10px;">Found @Vm.Anomalies.Count anomalies</p>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Vm.OnChange += StateHasChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Vm.HasPendingChart && Vm.PendingTimes.Length > 1 && Vm.PendingValues.Length > 1)
+        {
+            await JSRuntime.InvokeVoidAsync(
+                "drawChart",
+                Vm.PendingTimes,
+                Vm.PendingValues,
+                Vm.ChartTitle,
+                Vm.YAxisLabel
+            );
+
+            Vm.MarkChartDrawn();
+        }
+    }
+
+    public void Dispose()
+    {
+        Vm.OnChange -= StateHasChanged;
+    }
+
+    private int _fileInputKey = 0;
+
+    private void ResetPicker()
+    {
+        _fileInputKey++;
+        StateHasChanged();
+    }
+
+    private async Task OnFileChanged(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file is null) return;
+
+        var name = file.Name ?? "";
+        var isCsv = name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(file.ContentType, "text/csv", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(file.ContentType, "application/vnd.ms-excel", StringComparison.OrdinalIgnoreCase);
+
+        if (!isCsv)
+        {
+            ResetPicker();
+
+            Modal.Show(
+                title: "Invalid file type",
+                body: "Please upload a .csv file.",
+                confirmText: "Re-upload",
+                cancelText: "Cancel",
+                showCancel: true,
+                onConfirm: async () =>
+                {
+                    await SafeOpenPicker();
+                }
+            );
+            return;
+        }
+
+        await Vm.LoadFileAsync(e);
+        ResetPicker();
+    }
+
+    private async Task SafeOpenPicker()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("openFileDialogById", "voltageFileInput");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"openFileDialogById failed: {ex.Message}");
+        }
+    }
+}
+===== 旧版 View 结束 ===== *@
+
+@* ===== v5: 精简版 — 统一用 drawMultiChart ===== *@
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using PipeUi.State
+@inject VoltagePlotState Vm
+@inject IJSRuntime JSRuntime
+@inject ModalState Modal
+@implements IDisposable
+
+<h3>Voltage Monitor</h3>
+
+<div style="padding: 20px;">
+    <div style="margin-bottom: 20px;">
+        <h5>Upload CSV File</h5>
+        <InputFile @key="_fileInputKey" id="voltageFileInput" OnChange="OnFileChanged" />
+
+        <div style="margin-top:10px;">
+            <label><input type="checkbox" checked="@Vm.MultiSeriesMode"
+                @onchange="e => Vm.SetMultiSeriesMode((bool)(e.Value ?? false))" /> Multi-Series Mode</label>
+        </div>
+
+        @if (!Vm.MultiSeriesMode)
+        {
+            <div style="margin-top:10px;">
+                <label>Plot:</label>
+                <select value="@Vm.SelectedSeries" @onchange="e => Vm.ChangeSeries(e.Value?.ToString() ?? Vm.SeriesOptions[0])">
+                    @foreach (var opt in Vm.SeriesOptions) { <option value="@opt">@opt</option> }
+                </select>
+            </div>
+        }
+        else
+        {
+            <div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:10px;">
+                @foreach (var opt in Vm.SeriesOptions)
+                {
+                    var s = opt;
+                    <label><input type="checkbox" checked="@Vm.SelectedMultiSeries.Contains(s)"
+                        @onchange="e => Vm.ToggleMultiSeries(s, (bool)(e.Value ?? false))" /> @s</label>
+                }
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(Vm.Message))
+        { <div style="margin-top:10px; padding:10px; background:#d4edda; border-radius:4px;">@Vm.Message</div> }
+    </div>
+
+    @if (Vm.Model != null && Vm.Model.DataPoints.Count > 0)
+    {
+        <div style="margin-bottom:20px;">
+            <h5>Statistics</h5>
+            @if (Vm.Stats != null)
+            { <p>Points: @Vm.Stats.Count | Min: @Vm.Stats.MinVoltage.ToString("F2")V | Max: @Vm.Stats.MaxVoltage.ToString("F2")V | Avg: @Vm.Stats.AverageVoltage.ToString("F2")V</p> }
+            @if (!string.IsNullOrEmpty(Vm.Model.FileName)) { <p>File: @Vm.Model.FileName</p> }
+            @if (Vm.Model.ColumnNames.Count > 0) { <p>Columns: @string.Join(", ", Vm.Model.ColumnNames)</p> }
+        </div>
+
+        <div style="margin-bottom:20px; padding:12px; background:#f5f5f5; border-radius:6px;">
+            <h5>Axis Range Filter (Zoom)</h5>
+            <div style="display:flex; gap:15px; flex-wrap:wrap; align-items:end;">
+                <div><label>X Min:</label><br/><input type="text" @bind="Vm.XMinText" style="width:100px;" placeholder="auto"/></div>
+                <div><label>X Max:</label><br/><input type="text" @bind="Vm.XMaxText" style="width:100px;" placeholder="auto"/></div>
+                <div><label>Y Min:</label><br/><input type="text" @bind="Vm.YMinText" style="width:100px;" placeholder="auto"/></div>
+                <div><label>Y Max:</label><br/><input type="text" @bind="Vm.YMaxText" style="width:100px;" placeholder="auto"/></div>
+                <div><button @onclick="Vm.ApplyRange">Apply</button> <button @onclick="Vm.ResetRange">Reset</button></div>
+            </div>
+        </div>
+
+        <div style="margin-bottom:20px;">
+            <h5>@Vm.ChartTitle</h5>
+            <canvas id="chart" width="950" height="400" style="border:1px solid #ccc;"></canvas>
+        </div>
+
+        <div style="margin-bottom:20px;">
+            <h5>Anomaly Detection</h5>
+            <input type="number" @bind="Vm.Threshold" step="1" style="width:100px;" />
+            <button @onclick="Vm.Detect" style="margin-left:10px;">Detect</button>
+            @if (Vm.Anomalies != null) { <p>Found @Vm.Anomalies.Count anomalies</p> }
+        </div>
+
+        <div style="margin-bottom:20px; padding:12px; background:#fff3e0; border-radius:6px;">
+            <h5>Sampling Analysis</h5>
+            <button @onclick="Vm.AnalyzeSampling">Analyze Sampling Rate</button>
+            @if (Vm.DeltaTimes != null) { <p style="margin-top:8px;">Median Δt: @Vm.MedianDeltaTime.ToString("G4")s | Intervals: @Vm.DeltaTimes.Length</p> }
+            @if (Vm.SamplingAnomalies != null)
+            {
+                <p>Irregular points: @Vm.SamplingAnomalies.Count</p>
+                @if (Vm.SamplingAnomalies.Count > 0)
+                {
+                    <details><summary>Details (top 50)</summary>
+                    <table style="margin-top:4px; border-collapse:collapse; font-size:13px;">
+                        <tr style="background:#eee;"><th style="padding:3px 6px; border:1px solid #ccc;">Idx</th><th style="padding:3px 6px; border:1px solid #ccc;">Time</th><th style="padding:3px 6px; border:1px solid #ccc;">Δt</th><th style="padding:3px 6px; border:1px solid #ccc;">Expected</th></tr>
+                        @foreach (var a in Vm.SamplingAnomalies.Take(50))
+                        { <tr><td style="padding:3px 6px; border:1px solid #ccc;">@a.Index</td><td style="padding:3px 6px; border:1px solid #ccc;">@a.Time.ToString("G6")</td><td style="padding:3px 6px; border:1px solid #ccc;">@a.DeltaTime.ToString("G6")</td><td style="padding:3px 6px; border:1px solid #ccc;">@a.ExpectedDelta.ToString("G6")</td></tr> }
+                    </table></details>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private int _fileInputKey = 0;
+
+    // // 旧写法：表达式体
+    // protected override void OnInitialized() => Vm.OnChange += StateHasChanged;
+    // public void Dispose() => Vm.OnChange -= StateHasChanged;
+
+    // 简化写法：用花括号体
+    protected override void OnInitialized()
+    {
+        Vm.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        Vm.OnChange -= StateHasChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // // 旧写法：一行 if + LINQ Select
+        // if (!Vm.HasPendingChart || Vm.PendingSeries.Count == 0) return;
+        // var arr = Vm.PendingSeries.Select(s => new { name = s.Name, times = s.Times, values = s.Values }).ToArray();
+
+        // 简化写法：条件判断加花括号，用 foreach 代替 LINQ
+        if (!Vm.HasPendingChart || Vm.PendingSeries.Count == 0)
+        {
+            return;
+        }
+
+        // 把 PendingSeries 转成 JS 需要的匿名对象数组
+        var list = new List<object>();
+        foreach (var s in Vm.PendingSeries)
+        {
+            list.Add(new { name = s.Name, times = s.Times, values = s.Values });
+        }
+        var arr = list.ToArray();
+
+        await JSRuntime.InvokeVoidAsync("drawMultiChart", arr, Vm.ChartTitle, Vm.YAxisLabel);
+        Vm.MarkChartDrawn();
+    }
+
+    private async Task OnFileChanged(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file is null)
+        {
+            return;
+        }
+
+        var name = file.Name ?? "";
+        var isCsv = name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(file.ContentType, "text/csv", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(file.ContentType, "application/vnd.ms-excel", StringComparison.OrdinalIgnoreCase);
+
+        if (!isCsv)
+        {
+            // // 旧写法：两个语句挤一行 + Modal.Show 里一行 lambda
+            // _fileInputKey++; StateHasChanged();
+            // Modal.Show(... onConfirm: async () => { try { ... } catch { } });
+
+            // 简化写法：拆开写
+            _fileInputKey++;
+            StateHasChanged();
+
+            Modal.Show(
+                title: "Invalid file type",
+                body: "Please upload a .csv file.",
+                confirmText: "Re-upload",
+                cancelText: "Cancel",
+                showCancel: true,
+                onConfirm: async () =>
+                {
+                    try
+                    {
+                        await JSRuntime.InvokeVoidAsync("openFileDialogById", "voltageFileInput");
+                    }
+                    catch
+                    {
+                        // 忽略错误
+                    }
+                }
+            );
+            return;
+        }
+
+        await Vm.LoadFileAsync(e);
+        _fileInputKey++;
+        StateHasChanged();
+    }
+}

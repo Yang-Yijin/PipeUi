@@ -1,0 +1,25 @@
+﻿@page "/voltageplot"
+@* @using PipeUi.Views.Pipeline *@
+@rendermode Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer
+@* @using PipeUi.Views.Pipeline *@
+@using PipeUi.State
+@inject ModalState Modal
+
+<h1 style="color:red">VOLTAGEPLOT PAGE LOADED</h1>
+
+<VoltagePlotView />
+<button class="btn btn-outline-primary" @onclick="OpenVoltagePlotModal">
+    Show Modal
+</button>
+
+@code {
+    private void OpenVoltagePlotModal()
+    {
+        Modal.Show(
+            title: "VoltagePlot Alert",
+            body: "This is triggered from VoltagePlot page.",
+            confirmText: "OK",
+            showCancel: false
+        );
+    }
+}

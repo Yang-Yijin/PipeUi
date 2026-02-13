@@ -1,0 +1,39 @@
+@page "/voltage-python"
+@rendermode Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer
+@using PipeUi.Services
+@inject PythonBridge Py
+@inject IWebHostEnvironment Env
+
+<h3>Voltage Monitor (Python)</h3>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <p style="color:red;">@_error</p>
+}
+else if (Py.IsRunning)
+{
+    <iframe src="@Py.Url" style="width:100%; height:850px; border:1px solid #ccc;"></iframe>
+}
+else
+{
+    <p>Starting...</p>
+}
+
+@code {
+    private string _error = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Py.Start(Env.ContentRootPath);
+            await Task.Delay(2000);
+            if (!Py.IsRunning)
+                _error = "Python启动失败，请确认已安装Python和依赖 (pip install dash pandas plotly)";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}

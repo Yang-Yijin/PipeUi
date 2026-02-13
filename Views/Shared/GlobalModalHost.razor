@@ -1,0 +1,178 @@
+﻿@* @using PipeUi.State
+@inject ModalState Modal
+@inject IJSRuntime JS
+
+@implements IDisposable
+
+<div style="position:fixed;bottom:10px;right:10px;z-index:99999;background:#000;color:#fff;padding:6px 10px;border-radius:8px;opacity:.7;">
+    ModalHost mounted
+</div>
+
+
+@if (Modal.IsOpen)
+{
+    <div class="demo-backdrop" @onclick="Close"></div>
+
+    <div class="demo-modal" role="dialog" aria-modal="true" aria-labelledby="globalModalTitle">
+        <div class="demo-modal-card" @onclick:stopPropagation="true">
+            <div class="demo-modal-header">
+                <div id="globalModalTitle" class="demo-modal-title">@Modal.Title</div>
+                <button class="demo-x" @onclick="Close" aria-label="Close">×</button>
+            </div>
+
+            <div class="demo-modal-body">
+                <p style="white-space: pre-line;">@Modal.Body</p>
+                <p style="opacity:0.7; font-size: 0.9rem;">(ESC / click outside / Close)</p>
+            </div>
+
+            <div class="demo-modal-footer">
+                @if (Modal.ShowCancel)
+                {
+                    <button class="btn btn-outline-secondary" @onclick="Cancel">@Modal.CancelText</button>
+                }
+                <button class="btn btn-primary" @onclick="Confirm">@Modal.ConfirmText</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        Modal.OnChange += StateHasChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("globalModal.registerEsc", DotNetObjectReference.Create(this));
+        }
+    }
+
+    public void Dispose()
+    {
+        Modal.OnChange -= StateHasChanged;
+    }
+
+    private void Close() => Modal.Close();
+    private Task Confirm() => Modal.ConfirmAsync();
+    private Task Cancel() => Modal.CancelAsync();
+
+    [JSInvokable]
+    public void CloseFromEsc()
+    {
+        if (Modal.IsOpen)
+        {
+            Modal.Close();
+            InvokeAsync(StateHasChanged);
+        }
+    }
+}
+
+<style>
+    .demo-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.45);
+        z-index: 9998;
+    }
+
+    .demo-modal {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 16px;
+    }
+
+    .demo-modal-card {
+        width: min(720px, 100%);
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+        overflow: hidden;
+    }
+
+    .demo-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .demo-modal-title {
+        font-weight: 700;
+        font-size: 1.05rem;
+    }
+
+    .demo-x {
+        border: none;
+        background: transparent;
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 4px 8px;
+    }
+
+    .demo-modal-body {
+        padding: 16px;
+    }
+
+    .demo-modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 12px 16px;
+        border-top: 1px solid #eee;
+    }
+</style> *@
+@using PipeUi.State
+@* @inject ModalState Modal *@
+@inject PipeUi.State.ModalState Modal
+
+
+@implements IDisposable
+
+@if (Modal.IsOpen)
+{
+    <div style="position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:99998;"
+         @onclick="Modal.Close"></div>
+
+    <div style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:99999; padding:16px;">
+        <div style="width:min(640px,100%); background:#fff; border-radius:12px; padding:16px;">
+            <h3>@Modal.Title</h3>
+            <p style="white-space:pre-line;">@Modal.Body</p>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px;">
+                @if (Modal.ShowCancel)
+                {
+                    <button class="btn btn-outline-secondary" @onclick="Modal.CancelAsync">@Modal.CancelText</button>
+                }
+                <button class="btn btn-primary" @onclick="Modal.ConfirmAsync">@Modal.ConfirmText</button>
+            </div>
+        </div>
+    </div>
+}
+
+<div style="position:fixed;bottom:10px;right:10px;z-index:999999;background:#000;color:#fff;padding:6px 10px;border-radius:8px;opacity:.7;">
+    ModalHost mounted | IsOpen=@Modal.IsOpen | Id=@Modal.InstanceId | Type=@Modal.TypeName
+</div>
+
+
+@code {
+    protected override void OnInitialized()
+    {
+        Modal.OnChange += HandleChange;
+    }
+
+    private void HandleChange() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Modal.OnChange -= HandleChange;
+    }
+}
